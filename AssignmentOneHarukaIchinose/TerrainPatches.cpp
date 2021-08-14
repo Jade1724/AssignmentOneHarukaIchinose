@@ -138,6 +138,8 @@ void initialise()
 		fprintf(stderr, "Linker failure: %s\n", strInfoLog);
 		delete[] strInfoLog;
 	}
+
+
 	glUseProgram(program);
 
 	mvMatrixLoc = glGetUniformLocation(program, "mvMatrix");
@@ -217,12 +219,21 @@ void NormalKeyHandler(unsigned char key, int x, int y)
 //Display function to compute uniform values based on transformation parameters and to draw the scene
 void display()
 {
+	glm::vec4 light = glm::vec4(20.0, 10.0, 20.0, 1.0);
 	glm::vec3 eyePos = glm::vec3(ex, 20, ez);
 	glUniform3fv(eyePosLoc, 1, &eyePos[0]);
 	view = glm::lookAt(eyePos, glm::vec3(look_x, 0.0, look_z), glm::vec3(0.0, 1.0, 0.0)); //view matrix
+	glm::mat4 mvMatrix = glm::rotate(view, angle * CDR, glm::vec3(1.0, 0.0, 0.0));  //rotation matrix
+	glm::mat4 mvpMatrix = proj * mvMatrix;   //The model-view-projection matrix
 	projView = proj * view;  //Product matrix
 
+	glm::vec4 lightEye = view * light;     //Light position in eye coordinates
+	glm::mat4 invMatrix = glm::inverse(mvMatrix);  //Inverse of model-view matrix for normal transformation
+
+	glUniformMatrix4fv(mvMatrixLoc, 1, GL_FALSE, &mvMatrix[0][0]);
 	glUniformMatrix4fv(mvpMatrixLoc, 1, GL_FALSE, &projView[0][0]);
+	glUniformMatrix4fv(norMatrixLoc, 1, GL_TRUE, &invMatrix[0][0]);  //Use transpose matrix here
+	glUniform4fv(lgtLoc, 1, &lightEye[0]);
 	glUniform1f(waterLevelLoc, waterLevel);
 
 	glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
@@ -230,7 +241,6 @@ void display()
 	glDrawElements(GL_PATCHES, 81*4, GL_UNSIGNED_SHORT, NULL);
 	glFlush();
 }
-
 
 
 int main(int argc, char** argv)
