@@ -1,0 +1,64 @@
+#version 400
+
+layout(vertices = 4) out;
+
+uniform vec3 eyePos;
+
+
+void main()
+{
+    float dmin = 5.0;
+    float dmax = 150.0;
+
+    // Average position of four corners to get inner tesselation level
+    vec4 avg = (    gl_in[0].gl_Position
+                +   gl_in[1].gl_Position
+                +   gl_in[2].gl_Position
+                +   gl_in[3].gl_Position) * 0.25;
+
+    float dist = distance(eyePos, avg.xyz);
+    int innerLevel = 20 - int((dist-dmin)*18.0/(dmax-dmin));
+    if(innerLevel < 1) innerLevel = 1;
+
+
+    // Average position of two corners to get outer tesselation level
+    vec4 avgSide1 = (   gl_in[0].gl_Position
+                     +  gl_in[1].gl_Position) * 0.5;
+
+    float distSide1 = distance(eyePos, avgSide1.xyz);
+    int outerLevel1 = 20 - int((distSide1-dmin)*18.0/(dmax-dmin));
+    if (outerLevel1 < 1) outerLevel1 = 1;
+
+
+    vec4 avgSide2 = (   gl_in[1].gl_Position
+                     +  gl_in[2].gl_Position) * 0.5;
+
+    float distSide2 = distance(eyePos, avgSide2.xyz);
+    int outerLevel2 = 20 - int((distSide2-dmin)*18.0/(dmax-dmin));
+    if (outerLevel2 < 1) outerLevel2 = 1;
+
+
+    vec4 avgSide3 = (   gl_in[2].gl_Position
+                     +  gl_in[3].gl_Position) * 0.5;
+    float distSide3 = distance(eyePos, avgSide3.xyz);
+    int outerLevel3 = 20 - int((distSide3-dmin)*18.0/(dmax-dmin));
+    if (outerLevel3 < 1) outerLevel3 = 1;
+
+
+    vec4 avgSide4 = (   gl_in[3].gl_Position
+                     +  gl_in[0].gl_Position) * 0.5;
+    float distSide4 = distance(eyePos, avgSide4.xyz);
+    int outerLevel4 = 20 - int((distSide4-dmin)*18.0/(dmax-dmin));
+    if (outerLevel4 < 1) outerLevel4 = 1;
+
+
+    // Cracking can be fixed by taking average position of two patches to get the same outer tessellation level for adjacent edges.
+    gl_out[gl_InvocationID].gl_Position
+      = gl_in[gl_InvocationID].gl_Position;
+    gl_TessLevelOuter[0] = outerLevel4;
+    gl_TessLevelOuter[1] = outerLevel1;
+    gl_TessLevelOuter[2] = outerLevel2;
+    gl_TessLevelOuter[3] = outerLevel3;
+    gl_TessLevelInner[0] = innerLevel;
+    gl_TessLevelInner[1] = innerLevel;
+}
