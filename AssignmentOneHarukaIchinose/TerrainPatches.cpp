@@ -26,11 +26,12 @@ float CDR = 3.14159265/180.0;     //Conversion from degrees to rad (required in 
 float verts[100*3];       //10x10 grid (100 vertices)
 GLushort elems[81*4];       //Element array for 81 quad patches
 glm::mat4 projView;
+glm::mat4 proj, view;
 glm::vec3 eye;
 float angle = 0, look_x = 0, look_z = -70, ex = 0, ez = 30;
 float waterLevel = 1, snowLevel = 8;
 bool lineMode = false;
-
+glm::vec4 light = glm::vec4(20.0, 10.0, 30.0, 1.0);
 
 //Generate vertex and element data for the terrain floor
 void generateData()
@@ -143,7 +144,6 @@ GLuint loadShader(GLenum shaderType, string filename)
 //Initialise the shader program, create and load buffer data
 void initialise()
 {
-	glm::mat4 proj, view;
 	//--------Load terrain height map-----------
 	loadTextures("Terrain_hm_02.tga");
 
@@ -179,6 +179,7 @@ void initialise()
 	glUseProgram(program);
 	eye = glm::vec3(ex, 20.0, ez);
 
+	mvMatrixLoc = glGetUniformLocation(program, "mvMatrix");
 	mvpMatrixLoc = glGetUniformLocation(program, "mvpMatrix");
 	eyePosLoc = glGetUniformLocation(program, "eyePos");
 	waterLevelLoc = glGetUniformLocation(program, "waterLevel");
@@ -199,9 +200,7 @@ void initialise()
 //--------Compute matrices----------------------
 	proj = glm::perspective(30.0f*CDR, 1.25f, 20.0f, 500.0f);  //perspective projection matrix
 	view = glm::lookAt(glm::vec3(0.0, 20.0, 30.0), glm::vec3(0.0, 0.0, -70.0), glm::vec3(0.0, 1.0, 0.0));
-	glm::vec4 light = glm::vec4(20.0, 10.0, 30.0, 1.0);
-	glm::vec4 lightEye = view * light;
-	glUniform4fv(lgtLoc, 1, &lightEye[0]);
+	glUniform4fv(lgtLoc, 1, &light[0]);
 
 //---------Load buffer data-----------------------
 	generateData();
@@ -282,17 +281,17 @@ void NormalKeyHandler(unsigned char key, int x, int y)
 //Display function to compute uniform values based on transformation parameters and to draw the scene
 void display()
 {
-	glm::mat4 proj, view;
 	glm::vec3 eyePos = glm::vec3(ex, 20, ez);
 	proj = glm::perspective(30.0f * CDR, 1.25f, 20.0f, 500.0f);  
 	view = glm::lookAt(eyePos, glm::vec3(look_x, 0.0, look_z), glm::vec3(0.0, 1.0, 0.0));
 	projView = proj * view;  //Product matrix
+	glm::mat4 mvMatrix = glm::rotate(view, angle * CDR, glm::vec3(1.0, 0.0, 0.0));  //rotation matrix
+	glm::mat4 mvpMatrix = proj * mvMatrix;   //The model-view-projection matrix
+	glm::mat4 invMatrix = glm::inverse(mvMatrix);
 
-	//glm::vec4 lightEye = view * light;     //Light position in eye coordinates
 	
 	glUniformMatrix4fv(mvpMatrixLoc, 1, GL_FALSE, &projView[0][0]);
 	glUniform3fv(eyePosLoc, 1, &eyePos[0]);
-	//glUniform4fv(lgtLoc, 1, &lightEye[0]);
 	glUniform1f(waterLevelLoc, waterLevel);
 	glUniform1f(snowLevelLoc, snowLevel);
 

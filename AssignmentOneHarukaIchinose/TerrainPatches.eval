@@ -39,5 +39,5 @@ void main()
     }
 
     es_out.height = height;
-    gl_Position = mvpMatrix * posn;
+    gl_Position = posn;
 }
