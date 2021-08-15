@@ -8,6 +8,7 @@ uniform vec4 lightPos;
 uniform float waterLevel;
 uniform float snowLevel;
 uniform vec3 eyePos;
+uniform int isFoggy;
 
 in ES_OUT
 {
@@ -29,27 +30,26 @@ vec3 normal()
 void main()
 {
 	vec4 white = vec4(1.0);
-	vec4 grey = vec4(0.2);
+	vec4 grey = vec4(0.3);
+	vec4 ambOut = grey;
 
 	for (int i = 0; i < 3; i++) {
 	
 		vec3 lgtVec = normalize(lightPos.xyz - gl_in[i].gl_Position.xyz);
-		vec4 ambOut = grey;
 		float diffTerm = max(dot(lgtVec, normal()), 0);
 		vec4 diffOut = white * diffTerm;
 
 		geomTcord = es_in[i].tcoord;
 		lighting = ambOut + diffOut;
 
+		if (isFoggy == 1) {
+			float dist = distance(eyePos.xyz, gl_in[i].gl_Position.xyz);
+			float t = (-dist + 50) / (-100 + 50);      // Interpolation parameter for fog
+			if (t < 0) t = 0;
+			else if (t > 1) t = 1;
+			lighting = (1-t) * normalize(lighting) + t * white;
+		}
 
-		float dist = distance(eyePos.xyz, gl_in[i].gl_Position.xyz);
-		float t = (-dist + 30) / (-100 + 30);      // Interpolation parameter for fog
-
-		if (t < 0) t = 0;
-		else if (t > 1) t = 1;
-		lighting = (1-t) * lighting + t * white;
-
-		
 		float height = es_in[i].height;
 		float blendingRatio;
 		float grassThreshold = 2;

@@ -21,7 +21,7 @@ using namespace std;
 
 //Globals
 GLuint vaoID;
-GLuint mvpMatrixLoc, eyePosLoc, mvMatrixLoc, norMatrixLoc, lgtLoc, waterLevelLoc, snowLevelLoc;
+GLuint mvpMatrixLoc, eyePosLoc, mvMatrixLoc, norMatrixLoc, lgtLoc, waterLevelLoc, snowLevelLoc, isFoggyLoc;
 float CDR = 3.14159265/180.0;     //Conversion from degrees to rad (required in GLM 0.9.6)
 float verts[100*3];       //10x10 grid (100 vertices)
 GLushort elems[81*4];       //Element array for 81 quad patches
@@ -30,8 +30,9 @@ glm::mat4 proj, view;
 glm::vec3 eye;
 float angle = 0, look_x = 0, look_z = -70, ex = 0, ez = 30;
 float waterLevel = 1, snowLevel = 8;
+GLint isFoggy = 0;
 bool lineMode = false;
-glm::vec4 light = glm::vec4(20.0, 10.0, 30.0, 1.0);
+glm::vec4 light = glm::vec4(25.0, 10.0, 40.0, 1.0);
 
 //Generate vertex and element data for the terrain floor
 void generateData()
@@ -186,6 +187,8 @@ void initialise()
 	snowLevelLoc = glGetUniformLocation(program, "snowLevel");
 	norMatrixLoc = glGetUniformLocation(program, "norMatrix");
 	lgtLoc = glGetUniformLocation(program, "lightPos");
+	isFoggyLoc = glGetUniformLocation(program, "isFoggy");
+
 	GLuint texLoc = glGetUniformLocation(program, "heightMap");
 	glUniform1i(texLoc, 0);
 	texLoc = glGetUniformLocation(program, "water");
@@ -275,6 +278,13 @@ void NormalKeyHandler(unsigned char key, int x, int y)
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 		lineMode = false;
 	}
+	else if (isFoggy == 0 && key == 'f') {
+		isFoggy = 1;
+	}
+	else if (isFoggy == 1 && key == 'f') {
+		isFoggy = 0;
+	}
+	
 	glutPostRedisplay();
 }
 
@@ -294,6 +304,7 @@ void display()
 	glUniform3fv(eyePosLoc, 1, &eyePos[0]);
 	glUniform1f(waterLevelLoc, waterLevel);
 	glUniform1f(snowLevelLoc, snowLevel);
+	glUniform1i(isFoggyLoc, isFoggy);
 
 	glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
 	glBindVertexArray(vaoID);
