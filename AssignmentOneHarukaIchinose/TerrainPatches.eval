@@ -6,11 +6,11 @@ uniform mat4 mvpMatrix;
 uniform sampler2D heightMap;
 uniform float waterLevel;
 
-
-out vec4 posn;
+out vec2 tcoord;
 
 void main()
 {
+    vec4 posn;
     float xmin = -45, xmax = +45, zmin = 0, zmax = -100;
     vec2 tcoord;
 
