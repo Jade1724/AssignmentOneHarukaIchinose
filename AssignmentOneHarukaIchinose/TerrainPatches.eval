@@ -6,14 +6,18 @@ uniform mat4 mvpMatrix;
 uniform sampler2D heightMap;
 uniform float waterLevel;
 
-out vec2 tcoord;
+out ES_OUT
+{
+    vec2 tcoord;
+    float height;
+} es_out;
+
 
 void main()
 {
     vec4 posn;
     float xmin = -45, xmax = +45, zmin = 0, zmax = -100;
-    vec2 tcoord;
-
+    
     float u = gl_TessCoord.x;
     float v = gl_TessCoord.y;
 
@@ -23,10 +27,10 @@ void main()
          + u* v* gl_in[2].gl_Position
          + (1-u)* v* gl_in[3].gl_Position;
 
-    tcoord.t = (posn.z - zmin) / (zmax - zmin);
-    tcoord.s = (posn.x - xmin) / (xmax - xmin);
+    es_out.tcoord.t = (posn.z - zmin) / (zmax - zmin);
+    es_out.tcoord.s = (posn.x - xmin) / (xmax - xmin);
 
-    float height = texture(heightMap, tcoord).r * 10.0;
+    float height = texture(heightMap, es_out.tcoord).r * 10.0;
 
     if (height < waterLevel) {
         posn.y = waterLevel;
@@ -34,5 +38,6 @@ void main()
         posn.y = height;
     }
 
+    es_out.height = height;
     gl_Position = mvpMatrix * posn;
 }
