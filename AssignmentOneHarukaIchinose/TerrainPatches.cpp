@@ -21,14 +21,18 @@ using namespace std;
 
 //Globals
 GLuint vaoID;
-GLuint mvpMatrixLoc, eyePosLoc, mvMatrixLoc, norMatrixLoc, lgtLoc, waterLevelLoc;
+GLuint mvpMatrixLoc, eyePosLoc, mvMatrixLoc, norMatrixLoc, lgtLoc, waterLevelLoc, snowLevelLoc, isFoggyLoc;
 float CDR = 3.14159265/180.0;     //Conversion from degrees to rad (required in GLM 0.9.6)
 float verts[100*3];       //10x10 grid (100 vertices)
 GLushort elems[81*4];       //Element array for 81 quad patches
 glm::mat4 projView;
-glm::mat4 proj, view;   //Projection and view matrices
+glm::mat4 proj, view;
+glm::vec3 eye;
 float angle = 0, look_x = 0, look_z = -70, ex = 0, ez = 30;
-float waterLevel = 0;
+float waterLevel = 1, snowLevel = 8;
+GLint isFoggy = 0;
+bool lineMode = false;
+glm::vec4 light = glm::vec4(25.0, 10.0, 40.0, 1.0);
 
 //Generate vertex and element data for the terrain floor
 void generateData()
@@ -64,14 +68,48 @@ void generateData()
 //Loads terrain texture
 void loadTextures(const char* terrainFileName)
 {
-	GLuint texID;
-    glGenTextures(1, &texID);
+	// Terrain height map
+	GLuint texIDs[5];
+    glGenTextures(5, texIDs);
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, texID);
+    glBindTexture(GL_TEXTURE_2D, texIDs[0]);
 	loadTGA(terrainFileName);
 
     glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+
+	// Water texture
+   
+    glActiveTexture(GL_TEXTURE1);  //Texture unit 0
+    glBindTexture(GL_TEXTURE_2D, texIDs[1]);
+	loadTGA("water.tga");
+
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+
+	// Grass texture
+	glActiveTexture(GL_TEXTURE2);
+	glBindTexture(GL_TEXTURE_2D, texIDs[2]);
+	loadTGA("grass.tga");
+
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+
+	// Rock texture
+	glActiveTexture(GL_TEXTURE3);
+	glBindTexture(GL_TEXTURE_2D, texIDs[3]);
+	loadTGA("rock.tga");
+
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+
+	// Snow texture
+	glActiveTexture(GL_TEXTURE4);
+	glBindTexture(GL_TEXTURE_2D, texIDs[4]);
+	loadTGA("snow.tga");
+
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 }
 
 
@@ -115,7 +153,7 @@ void initialise()
 	GLuint shaderf = loadShader(GL_FRAGMENT_SHADER, "TerrainPatches.frag");
 	GLuint shaderc = loadShader(GL_TESS_CONTROL_SHADER, "TerrainPatches.cont");
 	GLuint shadere = loadShader(GL_TESS_EVALUATION_SHADER, "TerrainPatches.eval");
-	//GLuint shaderg = loadShader(GL_GEOMETRY_SHADER, "TerrainPatches.geom");
+	GLuint shaderg = loadShader(GL_GEOMETRY_SHADER, "TerrainPatches.geom");
 
 	//--------Attach shaders---------------------
 	GLuint program = glCreateProgram();
@@ -123,7 +161,7 @@ void initialise()
 	glAttachShader(program, shaderf);
 	glAttachShader(program, shaderc);
 	glAttachShader(program, shadere);
-	//glAttachShader(program, shaderg);
+	glAttachShader(program, shaderg);
 
 	glLinkProgram(program);
 
@@ -138,18 +176,34 @@ void initialise()
 		fprintf(stderr, "Linker failure: %s\n", strInfoLog);
 		delete[] strInfoLog;
 	}
+
 	glUseProgram(program);
+	eye = glm::vec3(ex, 20.0, ez);
 
 	mvMatrixLoc = glGetUniformLocation(program, "mvMatrix");
 	mvpMatrixLoc = glGetUniformLocation(program, "mvpMatrix");
-	GLuint texLoc = glGetUniformLocation(program, "heightMap");
 	eyePosLoc = glGetUniformLocation(program, "eyePos");
 	waterLevelLoc = glGetUniformLocation(program, "waterLevel");
+	snowLevelLoc = glGetUniformLocation(program, "snowLevel");
+	norMatrixLoc = glGetUniformLocation(program, "norMatrix");
+	lgtLoc = glGetUniformLocation(program, "lightPos");
+	isFoggyLoc = glGetUniformLocation(program, "isFoggy");
+
+	GLuint texLoc = glGetUniformLocation(program, "heightMap");
 	glUniform1i(texLoc, 0);
-	
+	texLoc = glGetUniformLocation(program, "water");
+	glUniform1i(texLoc, 1);
+	texLoc = glGetUniformLocation(program, "grass");
+	glUniform1i(texLoc, 2);
+	texLoc = glGetUniformLocation(program, "rock");
+	glUniform1i(texLoc, 3);
+	texLoc = glGetUniformLocation(program, "snow");
+	glUniform1i(texLoc, 4);
 
 //--------Compute matrices----------------------
 	proj = glm::perspective(30.0f*CDR, 1.25f, 20.0f, 500.0f);  //perspective projection matrix
+	view = glm::lookAt(glm::vec3(0.0, 20.0, 30.0), glm::vec3(0.0, 0.0, -70.0), glm::vec3(0.0, 1.0, 0.0));
+	glUniform4fv(lgtLoc, 1, &light[0]);
 
 //---------Load buffer data-----------------------
 	generateData();
@@ -174,7 +228,6 @@ void initialise()
 
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_CULL_FACE);
-	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
 }
 
@@ -211,6 +264,27 @@ void NormalKeyHandler(unsigned char key, int x, int y)
 	else if (key == 'a') {
 		waterLevel -= 0.1;
 	}
+	else if (key == 'w') {
+		snowLevel += 0.1;
+	}
+	else if (key == 's') {
+		snowLevel -= 0.1;
+	}
+	else if (!lineMode && key == ' ') {
+		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+		lineMode = true;
+	}
+	else if (lineMode && key == ' ') {
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		lineMode = false;
+	}
+	else if (isFoggy == 0 && key == 'f') {
+		isFoggy = 1;
+	}
+	else if (isFoggy == 1 && key == 'f') {
+		isFoggy = 0;
+	}
+	
 	glutPostRedisplay();
 }
 
@@ -218,19 +292,25 @@ void NormalKeyHandler(unsigned char key, int x, int y)
 void display()
 {
 	glm::vec3 eyePos = glm::vec3(ex, 20, ez);
-	glUniform3fv(eyePosLoc, 1, &eyePos[0]);
-	view = glm::lookAt(eyePos, glm::vec3(look_x, 0.0, look_z), glm::vec3(0.0, 1.0, 0.0)); //view matrix
+	proj = glm::perspective(30.0f * CDR, 1.25f, 20.0f, 500.0f);  
+	view = glm::lookAt(eyePos, glm::vec3(look_x, 0.0, look_z), glm::vec3(0.0, 1.0, 0.0));
 	projView = proj * view;  //Product matrix
+	glm::mat4 mvMatrix = glm::rotate(view, angle * CDR, glm::vec3(1.0, 0.0, 0.0));  //rotation matrix
+	glm::mat4 mvpMatrix = proj * mvMatrix;   //The model-view-projection matrix
+	glm::mat4 invMatrix = glm::inverse(mvMatrix);
 
+	
 	glUniformMatrix4fv(mvpMatrixLoc, 1, GL_FALSE, &projView[0][0]);
+	glUniform3fv(eyePosLoc, 1, &eyePos[0]);
 	glUniform1f(waterLevelLoc, waterLevel);
+	glUniform1f(snowLevelLoc, snowLevel);
+	glUniform1i(isFoggyLoc, isFoggy);
 
 	glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
 	glBindVertexArray(vaoID);
 	glDrawElements(GL_PATCHES, 81*4, GL_UNSIGNED_SHORT, NULL);
 	glFlush();
 }
-
 
 
 int main(int argc, char** argv)
